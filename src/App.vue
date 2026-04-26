@@ -74,7 +74,7 @@ function pickNext() {
   return name
 }
 
-const current = ref(pickNext())
+const current = ref('')
 
 function nextCard() {
   const n = pickNext()
@@ -95,10 +95,10 @@ const activePlayerNumber = computed(() => {
 const totalScoreA = computed(() => totalA.value.correct - totalA.value.passed)
 const totalScoreB = computed(() => totalB.value.correct - totalB.value.passed)
 
-function start() {
-  if (running.value || !canStart.value) return
+// «Почати гру» з налаштувань: відкриває екран гри, слово ще не показуємо (README), таймер не йде, доки не натиснути «Старт».
+function beginMatchFromSetup() {
+  if (!canStart.value) return
   screen.value = 'game'
-  // Новий раунд завжди стартує з чистого стану.
   correct.value = 0
   passed.value = 0
   history.value = []
@@ -115,13 +115,31 @@ function start() {
   const first = pickNext()
   if (!first) {
     exhausted.value = true
+    current.value = ''
     return
   }
   current.value = first
-  running.value = true
+  running.value = false
   timeUp.value = false
   secondsLeft.value = roundSeconds.value
+}
+
+// Початок таймера на екрані гри (кнопка «Старт»).
+function startRound() {
+  if (running.value || !canStart.value || exhausted.value) return
+  if (!current.value) return
+  timeUp.value = false
+  secondsLeft.value = roundSeconds.value
+  running.value = true
   ensureTimerRunning()
+}
+
+// Для «Грати знову» після раунду — новий кубик + одразу таймер, без кроку «Старт».
+function startNewSoloFromResults() {
+  if (mode.value === 'team') return
+  beginMatchFromSetup()
+  if (exhausted.value) return
+  startRound()
 }
 
 function endRound(recordTurn = true) {
@@ -145,7 +163,7 @@ function endRound(recordTurn = true) {
       }
     }
   }
-  resultsOpen.value = true
+  if (recordTurn) resultsOpen.value = true
 }
 
 function closeResults() {
@@ -155,7 +173,7 @@ function closeResults() {
 function replaySolo() {
   if (mode.value === 'team') return
   closeResults()
-  start()
+  startNewSoloFromResults()
 }
 
 function nextTeamTurn() {
@@ -175,7 +193,8 @@ function nextTeamTurn() {
   if (!n) {
     exhausted.value = true
     resultsOpen.value = false
-    endRound(false)
+    running.value = false
+    clearInterval(t)
     return
   }
   current.value = n
@@ -202,17 +221,28 @@ function loadState() {
     if (typeof s?.roundSeconds === 'number') roundSeconds.value = s.roundSeconds
     if (typeof s?.teamA === 'string') teamA.value = s.teamA
     if (typeof s?.teamB === 'string') teamB.value = s.teamB
-    if (s?.screen) screen.value = s.screen
-    if (typeof s?.secondsLeft === 'number') secondsLeft.value = s.secondsLeft
-    if (typeof s?.running === 'boolean') running.value = s.running
-    if (typeof s?.timeUp === 'boolean') timeUp.value = s.timeUp
-    if (typeof s?.correct === 'number') correct.value = s.correct
-    if (typeof s?.passed === 'number') passed.value = s.passed
-    if (Array.isArray(s?.history)) history.value = s.history
-    if (Array.isArray(s?.seen)) seen.value = new Set(s.seen)
+    if (typeof s?.playersA === 'number' && s.playersA >= 1) playersA.value = s.playersA
+    if (typeof s?.playersB === 'number' && s.playersB >= 1) playersB.value = s.playersB
     if (Array.isArray(s?.globalSeen)) globalSeen.value = new Set(s.globalSeen)
-    if (typeof s?.current === 'string' && s.current) current.value = s.current
-    ensureTimerRunning()
+    // Не відновлюємо середину гри: завжди налаштування; globalSeen — щоб пул слів залишався.
+    screen.value = 'setup'
+    running.value = false
+    timeUp.value = false
+    resultsOpen.value = false
+    correct.value = 0
+    passed.value = 0
+    history.value = []
+    seen.value = new Set()
+    lastTurn.value = null
+    secondsLeft.value = roundSeconds.value
+    totalA.value = { correct: 0, passed: 0 }
+    totalB.value = { correct: 0, passed: 0 }
+    playerIndexA.value = 0
+    playerIndexB.value = 0
+    activeTeam.value = 'A'
+    current.value = ''
+    const remaining = pool.value.filter((x) => !globalSeen.value.has(x))
+    exhausted.value = remaining.length === 0
   } catch {
     // Ігноруємо битий storage.
   }
@@ -250,7 +280,8 @@ watch([mode, roundSeconds, teamA, teamB, screen, secondsLeft, running, timeUp, c
 watch([seen, globalSeen], saveState, { deep: true })
 
 function backToSetup() {
-  endRound(false)
+  running.value = false
+  clearInterval(t)
   resultsOpen.value = false
   screen.value = 'setup'
 }
@@ -274,10 +305,18 @@ onMounted(() => loadState())
 
 <template>
   <main
-    class="min-h-dvh overflow-x-hidden bg-gradient-to-b from-[#0B1020] via-[#0B1020] to-[#070A14] text-white"
+    :class="[
+      'overflow-x-hidden bg-gradient-to-b from-[#0B1020] via-[#0B1020] to-[#070A14] text-white',
+      screen === 'game'
+        ? 'flex h-[100dvh] max-h-[100dvh] min-h-0 flex-col'
+        : 'min-h-dvh',
+    ]"
   >
     <div
-      class="mx-auto flex min-h-dvh max-w-5xl min-w-0 flex-col px-3 py-4 sm:px-4 sm:py-5 lg:py-12"
+      :class="[
+        'mx-auto flex w-full min-w-0 max-w-5xl flex-col',
+        screen === 'game' ? 'min-h-0 flex-1 overflow-hidden px-2.5 py-1.5 sm:px-4 sm:py-3 lg:py-12' : 'min-h-dvh px-3 py-4 sm:px-4 sm:py-5 lg:py-12',
+      ]"
     >
       <header v-if="screen === 'setup'" class="flex flex-col gap-3">
         <div class="space-y-1">
@@ -287,7 +326,7 @@ onMounted(() => loadState())
         </div>
       </header>
 
-      <header v-else class="space-y-1.5">
+      <header v-else class="shrink-0 space-y-0.5 sm:space-y-1.5">
         <div class="text-sm font-medium">Гра</div>
         <div class="flex min-w-0 items-center justify-between gap-2">
           <div class="min-w-0 flex-1 truncate text-xs text-white/60">
@@ -295,12 +334,11 @@ onMounted(() => loadState())
             <span v-else>Одиночна</span>
           </div>
           <button
-            class="shrink-0 rounded-xl bg-white/5 px-2.5 py-1.5 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/10"
+            class="shrink-0 whitespace-nowrap rounded-2xl bg-white/5 px-3.5 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/10"
             type="button"
-            aria-label="Налаштування"
             @click="backToSetup"
           >
-            Налашт.
+            Налаштування
           </button>
         </div>
       </header>
@@ -411,7 +449,7 @@ onMounted(() => loadState())
             class="rounded-2xl bg-indigo-500 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 hover:bg-indigo-400 disabled:opacity-50"
             type="button"
             :disabled="!canStart"
-            @click="start"
+            @click="beginMatchFromSetup"
           >
             Почати гру
           </button>
@@ -420,9 +458,11 @@ onMounted(() => loadState())
 
       <template v-else>
         <div
-          class="mt-3 flex min-h-0 flex-1 flex-col gap-2 sm:mt-4 sm:gap-3 lg:grid lg:min-h-0 lg:grid-cols-[1fr_360px] lg:items-start lg:gap-4"
+          class="mt-5 flex min-h-0 flex-1 flex-col gap-1.5 sm:mt-5 sm:gap-3 lg:grid lg:min-h-0 lg:grid-cols-[1fr_360px] lg:items-start lg:gap-4"
         >
-          <section class="min-w-0 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 p-4 ring-1 ring-white/10 sm:p-6">
+          <section
+            class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-y-contain rounded-2xl bg-gradient-to-b from-white/10 to-white/5 p-3 ring-1 ring-white/10 sm:rounded-3xl sm:p-6"
+          >
             <div class="flex min-w-0 items-center justify-between gap-2 sm:items-start sm:gap-4">
               <div class="min-w-0 flex-1 text-xs leading-snug text-white/60 sm:leading-normal">
                 Пояснюй словами, не називаючи прямо
@@ -443,8 +483,20 @@ onMounted(() => loadState())
                 </div>
                 <div class="break-words text-3xl font-semibold tracking-tight sm:text-6xl">{{ current }}</div>
               </div>
-              <div v-else class="text-base font-medium text-white/60">
-                Натисніть “Старт”, щоб показати перше слово.
+              <div v-else class="space-y-3">
+                <div v-if="exhausted" class="text-base font-medium text-amber-200">Слова на пристрої вичерпано.</div>
+                <template v-else>
+                  <p class="text-base font-medium text-white/60">
+                    Натисніть «Старт», щоб запустити таймер і показати слово.
+                  </p>
+                  <button
+                    class="w-full rounded-2xl bg-indigo-500 px-4 mt-12 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-500/20 hover:bg-indigo-400"
+                    type="button"
+                    @click="startRound"
+                  >
+                    Старт
+                  </button>
+                </template>
               </div>
             </div>
 
@@ -510,7 +562,7 @@ onMounted(() => loadState())
                   </span>
                 </li>
                 <li v-if="history.length === 0" class="text-sm text-white/60">
-                  Натисніть “Старт”, пояснюйте — і відмічайте результат.
+                  Після «Старт» пояснюйте — і відмічайте результат.
                 </li>
               </ul>
               <div v-if="exhausted" class="mt-3 text-xs font-semibold text-amber-300">
