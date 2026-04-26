@@ -273,8 +273,12 @@ onMounted(() => loadState())
 </script>
 
 <template>
-  <main class="min-h-dvh bg-gradient-to-b from-[#0B1020] via-[#0B1020] to-[#070A14] text-white">
-    <div class="mx-auto flex min-h-dvh max-w-5xl flex-col px-4 py-5 sm:py-12">
+  <main
+    class="min-h-dvh overflow-x-hidden bg-gradient-to-b from-[#0B1020] via-[#0B1020] to-[#070A14] text-white"
+  >
+    <div
+      class="mx-auto flex min-h-dvh max-w-5xl min-w-0 flex-col px-3 py-4 sm:px-4 sm:py-5 lg:py-12"
+    >
       <header v-if="screen === 'setup'" class="flex flex-col gap-3">
         <div class="space-y-1">
           <div>Налаштування</div>
@@ -283,20 +287,22 @@ onMounted(() => loadState())
         </div>
       </header>
 
-      <header v-else class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-        <div class="space-y-1">
-          <div>Гра</div>
-          <div v-if="mode === 'team'" class="text-xs text-white/60">
-            Хід: {{ activeTeamName }} · гравець №{{ activePlayerNumber }}
+      <header v-else class="space-y-1.5">
+        <div class="text-sm font-medium">Гра</div>
+        <div class="flex min-w-0 items-center justify-between gap-2">
+          <div class="min-w-0 flex-1 truncate text-xs text-white/60">
+            <span v-if="mode === 'team'">Хід: {{ activeTeamName }} · №{{ activePlayerNumber }}</span>
+            <span v-else>Одиночна</span>
           </div>
+          <button
+            class="shrink-0 rounded-xl bg-white/5 px-2.5 py-1.5 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/10"
+            type="button"
+            aria-label="Налаштування"
+            @click="backToSetup"
+          >
+            Налашт.
+          </button>
         </div>
-        <button
-          class="rounded-2xl bg-white/5 px-4 py-3 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/10"
-          type="button"
-          @click="backToSetup"
-        >
-          Налаштування
-        </button>
       </header>
 
       <section v-if="screen === 'setup'" class="mt-6 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 p-6 ring-1 ring-white/10">
@@ -413,11 +419,17 @@ onMounted(() => loadState())
       </section>
 
       <template v-else>
-        <div class="mt-4 flex flex-1 flex-col gap-3 lg:grid lg:grid-cols-[1fr_360px] lg:items-start lg:gap-4">
-          <section class="rounded-3xl bg-gradient-to-b from-white/10 to-white/5 p-4 ring-1 ring-white/10 sm:p-6">
-            <div class="flex items-start justify-between gap-4">
-              <div class="text-xs text-white/60">Пояснюй словами, не називаючи прямо</div>
-              <div class="rounded-2xl bg-white/5 px-3 py-2 text-xs font-semibold text-white/80 ring-1 ring-white/10">
+        <div
+          class="mt-3 flex min-h-0 flex-1 flex-col gap-2 sm:mt-4 sm:gap-3 lg:grid lg:min-h-0 lg:grid-cols-[1fr_360px] lg:items-start lg:gap-4"
+        >
+          <section class="min-w-0 rounded-3xl bg-gradient-to-b from-white/10 to-white/5 p-4 ring-1 ring-white/10 sm:p-6">
+            <div class="flex min-w-0 items-center justify-between gap-2 sm:items-start sm:gap-4">
+              <div class="min-w-0 flex-1 text-xs leading-snug text-white/60 sm:leading-normal">
+                Пояснюй словами, не називаючи прямо
+              </div>
+              <div
+                class="shrink-0 rounded-xl bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-white/80 ring-1 ring-white/10 sm:rounded-2xl sm:px-3 sm:py-2"
+              >
                 {{ Math.floor(secondsLeft / 60) }}:{{ String(secondsLeft % 60).padStart(2, '0') }}
               </div>
             </div>
@@ -429,7 +441,7 @@ onMounted(() => loadState())
                     {{ cardBadge }}
                   </span>
                 </div>
-                <div class="text-3xl font-semibold tracking-tight sm:text-6xl">{{ current }}</div>
+                <div class="break-words text-3xl font-semibold tracking-tight sm:text-6xl">{{ current }}</div>
               </div>
               <div v-else class="text-base font-medium text-white/60">
                 Натисніть “Старт”, щоб показати перше слово.
